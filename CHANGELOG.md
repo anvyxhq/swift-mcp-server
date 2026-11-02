@@ -11,6 +11,11 @@ A ground-up overhaul that refocuses the server on SourceKit-LSP. This is a
 breaking change from 1.x; tag it as `v2.0.0` when released.
 
 ### Added
+- OS version availability tools, so code is correct for every OS version an app supports:
+  - `check_availability` type-checks a file at a minimum OS version with the installed SDK and lists APIs that need a newer OS, deprecated APIs, and dependencies built for a newer OS.
+  - `check_availability_matrix` runs that check for several versions at once and reports the lowest one that compiles.
+  - `api_availability` looks up when an SDK API was introduced, deprecated or removed, including Objective-C frameworks such as UIKit.
+  - New `APIAvailability` library target and product.
 - Index-backed navigation tools: `search_workspace_symbols`, `get_implementations`, `call_hierarchy`, and `type_hierarchy`. They wait a bounded amount of time for SourceKit-LSP's global index to warm up before returning.
 - Refactoring tools that write to disk: `rename_symbol` (workspace-wide) and `code_actions` (list compiler fix-its / refactorings on a line, or apply one by title). `code_actions` declares `codeActionLiteralSupport` and replays the original diagnostics so fix-its resolve.
 - Objective-C / C / C++ support: the LSP `languageId` is chosen from the file extension (`.m`, `.mm`, `.h`, `.c`, `.cpp`, …) so SourceKit-LSP routes C-family files to `clangd`. (SwiftUI already worked, being ordinary Swift.)

@@ -95,6 +95,9 @@ final class SwiftMCPServerTests: XCTestCase {
                 "type_hierarchy",
                 "get_implementations",
                 "code_actions",
+                "check_availability",
+                "check_availability_matrix",
+                "api_availability",
             ]
         )
     }
