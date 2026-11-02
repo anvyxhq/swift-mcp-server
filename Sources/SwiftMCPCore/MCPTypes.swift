@@ -226,9 +226,13 @@ public struct ToolCallParams: Codable {
 
 public struct ToolCallResult: Codable {
     public let content: [ToolContent]
+    /// Set when the tool itself failed, so the client sees the failure's
+    /// message instead of a bare JSON-RPC error. Omitted on success.
+    public let isError: Bool?
 
-    public init(content: [ToolContent]) {
+    public init(content: [ToolContent], isError: Bool? = nil) {
         self.content = content
+        self.isError = isError
     }
 }
 

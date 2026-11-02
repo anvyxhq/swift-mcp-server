@@ -9,6 +9,7 @@ public final class StdioTransport: @unchecked Sendable {
     private let swiftLanguageServer: SwiftLanguageServer
     private let mcpProtocolHandler: MCPProtocolHandler
     private let shutdownLock = NSLock()
+    private let stdoutLock = NSLock()
     private var hasShutdown = false
 
     public init(
@@ -45,15 +46,20 @@ public final class StdioTransport: @unchecked Sendable {
 
             logger.trace("Received STDIO input")
 
-            do {
-                // Notifications (no `id`) return nil — they must not be answered.
-                if let response = try await processRequest(line) {
-                    writeToStdout(response)
-                    logger.trace("Sent STDIO response")
+            // Handle each request in its own task so one slow SourceKit-LSP
+            // call cannot block later requests or shutdown on stdin close.
+            // Responses carry their request id, so they may complete out of order.
+            Task { [self] in
+                do {
+                    // Notifications (no `id`) return nil — they must not be answered.
+                    if let response = try await processRequest(line) {
+                        writeToStdout(response)
+                        logger.trace("Sent STDIO response")
+                    }
+                } catch {
+                    logger.error("Error processing request: \(error)")
+                    writeToStdout(createErrorResponse(error: error))
                 }
-            } catch {
-                logger.error("Error processing request: \(error)")
-                writeToStdout(createErrorResponse(error: error))
             }
         }
 
@@ -134,7 +140,11 @@ public final class StdioTransport: @unchecked Sendable {
         return nil
     }
 
+    /// Serialized so concurrent responses never interleave on stdout.
     private func writeToStdout(_ response: String) {
+        stdoutLock.lock()
+        defer { stdoutLock.unlock() }
+
         FileHandle.standardOutput.write(Data((response + "\n").utf8))
         fflush(stdout)
     }

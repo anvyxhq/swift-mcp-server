@@ -37,7 +37,9 @@ actor SourceKitLSPClient {
     // diagnostic, including fields we do not decode).
     private var latestRawDiagnostics: [String: [JSONValue]] = [:]
     private var pendingRequests: [Int: CheckedContinuation<JSONValue, Error>] = [:]
-    private var diagnosticWaiters: [String: [CheckedContinuation<[LSPDiagnostic], Error>]] = [:]
+    // Keyed by URI, then by waiter, so a timed-out waiter can be removed
+    // and resumed without disturbing other waiters on the same document.
+    private var diagnosticWaiters: [String: [UUID: CheckedContinuation<[LSPDiagnostic], Error>]] = [:]
 
     init(executablePath: String, workspaceRoot: URL, logger: Logger) {
         self.executablePath = executablePath
@@ -210,6 +212,7 @@ actor SourceKitLSPClient {
         let document = try await prepareDocument(fileURL)
 
         return try await poll(
+            timeout: indexReadinessTimeout,
             operation: {
                 try await self.requestDecodedArray(
                     method: "textDocument/references",
@@ -233,6 +236,7 @@ actor SourceKitLSPClient {
         let document = try await prepareDocument(fileURL)
 
         return try await poll(
+            timeout: indexReadinessTimeout,
             operation: {
                 let targets: [LSPDefinitionTarget] = try await self.requestDecodedOneOrMany(
                     method: "textDocument/definition",
@@ -550,26 +554,31 @@ actor SourceKitLSPClient {
             return diagnostics
         }
 
-        return try await withThrowingTaskGroup(of: [LSPDiagnostic].self) { group in
-            group.addTask {
-                try await self.awaitDiagnostics(uri: uri)
-            }
+        // The continuation does not respond to cancellation, so the timeout
+        // must remove and resume it explicitly; otherwise a document that
+        // never gets a publishDiagnostics would hang the request forever.
+        let waiterID = UUID()
+        let timeoutTask = Task { [weak self] in
+            try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
+            await self?.timeOutDiagnosticWaiter(uri: uri, waiterID: waiterID)
+        }
+        defer { timeoutTask.cancel() }
 
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                throw SwiftMCPError.communicationError("Timed out waiting for diagnostics from SourceKit-LSP")
-            }
-
-            let result = try await group.next() ?? []
-            group.cancelAll()
-            return result
+        return try await withCheckedThrowingContinuation { continuation in
+            diagnosticWaiters[uri, default: [:]][waiterID] = continuation
         }
     }
 
-    private func awaitDiagnostics(uri: String) async throws -> [LSPDiagnostic] {
-        try await withCheckedThrowingContinuation { continuation in
-            diagnosticWaiters[uri, default: []].append(continuation)
+    private func timeOutDiagnosticWaiter(uri: String, waiterID: UUID) {
+        guard let continuation = diagnosticWaiters[uri]?.removeValue(forKey: waiterID) else {
+            return
         }
+
+        if diagnosticWaiters[uri]?.isEmpty == true {
+            diagnosticWaiters.removeValue(forKey: uri)
+        }
+
+        continuation.resume(throwing: SwiftMCPError.communicationError("Timed out waiting for diagnostics from SourceKit-LSP"))
     }
 
     private func prepareDocument(_ fileURL: URL) async throws -> PreparedDocument {
@@ -987,11 +996,10 @@ actor SourceKitLSPClient {
 
         let diagnostics = rawDiagnostics.compactMap { try? LSPDiagnostic(jsonValue: $0) }
 
-        if var waiters = diagnosticWaiters.removeValue(forKey: uri) {
-            for continuation in waiters {
+        if let waiters = diagnosticWaiters.removeValue(forKey: uri) {
+            for continuation in waiters.values {
                 continuation.resume(returning: diagnostics)
             }
-            waiters.removeAll()
         } else {
             latestDiagnostics[uri] = diagnostics
         }
@@ -1020,7 +1028,7 @@ actor SourceKitLSPClient {
     }
 
     private func failAllDiagnosticWaiters(with error: Error) {
-        let waiters = diagnosticWaiters.values.flatMap { $0 }
+        let waiters = diagnosticWaiters.values.flatMap { $0.values }
         diagnosticWaiters.removeAll()
 
         for continuation in waiters {

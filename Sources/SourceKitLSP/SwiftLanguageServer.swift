@@ -55,18 +55,29 @@ public final class SwiftLanguageServer {
         logger.info("Swift Language Server initialized")
         logger.info("Workspace: \(self.workspaceRoot.path)")
         logger.info("SourceKit-LSP: \(self.sourceKitLSPPath)")
+        if let version = Self.toolchainVersion(forSourceKitLSP: sourceKitLSPPath) {
+            logger.info("SourceKit-LSP toolchain: \(version)")
+        }
     }
 
     // MARK: - SourceKit-LSP Discovery
 
     /// Find the SourceKit-LSP executable. An explicit `SOURCEKIT_LSP_PATH`
-    /// environment variable wins (for custom toolchains), otherwise fall back
-    /// to the common install locations.
+    /// environment variable wins (for custom toolchains). Next comes the
+    /// active toolchain as `xcrun` reports it (honoring `xcode-select` and
+    /// `DEVELOPER_DIR`), so SourceKit-LSP matches the compiler that built the
+    /// workspace; a mismatch fails with "Loading the standard library failed".
+    /// Only then fall back to the common install locations.
     static func findSourceKitLSP() -> String? {
         if let override = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_PATH"],
            !override.isEmpty,
            FileManager.default.fileExists(atPath: override) {
             return override
+        }
+
+        if let activePath = runTool("/usr/bin/xcrun", arguments: ["--find", "sourcekit-lsp"]),
+           FileManager.default.fileExists(atPath: activePath) {
+            return activePath
         }
 
         let commonPaths = [
@@ -77,6 +88,56 @@ public final class SwiftLanguageServer {
         ]
 
         return commonPaths.first { FileManager.default.fileExists(atPath: $0) }
+    }
+
+    /// The `swift --version` line of the toolchain that holds `sourceKitLSPPath`,
+    /// logged at startup so a toolchain mismatch is visible in the server log.
+    static func toolchainVersion(forSourceKitLSP sourceKitLSPPath: String) -> String? {
+        let swiftPath = URL(fileURLWithPath: sourceKitLSPPath)
+            .deletingLastPathComponent()
+            .appendingPathComponent("swift")
+            .path
+        guard FileManager.default.isExecutableFile(atPath: swiftPath) else {
+            return nil
+        }
+
+        return runTool(swiftPath, arguments: ["--version"])?
+            .split(separator: "\n")
+            .first { $0.contains("Swift version") }
+            .map(String.init)
+    }
+
+    /// Run a short-lived tool and return its trimmed standard output, or nil
+    /// if it cannot be launched or exits non-zero.
+    private static func runTool(_ executablePath: String, arguments: [String]) -> String? {
+        guard FileManager.default.isExecutableFile(atPath: executablePath) else {
+            return nil
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+
+        guard process.terminationStatus == 0,
+              let text = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else {
+            return nil
+        }
+
+        return text
     }
 
     // MARK: - LSP Communication

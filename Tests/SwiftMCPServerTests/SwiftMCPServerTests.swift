@@ -125,6 +125,39 @@ final class SwiftMCPServerTests: XCTestCase {
         }
     }
 
+    func testToolFailureIsReportedAsToolResultWithMessage() async throws {
+        let logger = Logger(label: "test")
+        let swiftLanguageServer = SwiftLanguageServer(logger: logger)
+        let handler = MCPProtocolHandler(swiftLanguageServer: swiftLanguageServer, logger: logger)
+        defer { Task { await swiftLanguageServer.shutdown() } }
+
+        let request = MCPRequest(
+            jsonrpc: "2.0",
+            id: .string("call"),
+            method: "tools/call",
+            params: [
+                "name": "find_references",
+                "arguments": [
+                    "file_path": .string("/nonexistent/\(UUID().uuidString)/Missing.swift"),
+                    "line": 0,
+                    "character": 0
+                ]
+            ]
+        )
+
+        let response = try await handler.handleRequest(request)
+        let data = try JSONEncoder().encode(response)
+        let jsonObject = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+
+        XCTAssertNil(jsonObject["error"])
+        let result = try XCTUnwrap(jsonObject["result"] as? [String: Any])
+        XCTAssertEqual(result["isError"] as? Bool, true)
+        let content = try XCTUnwrap(result["content"] as? [[String: Any]])
+        let text = try XCTUnwrap(content.first?["text"] as? String)
+        XCTAssertTrue(text.hasPrefix("Error: "), text)
+        XCTAssertGreaterThan(text.count, "Error: ".count)
+    }
+
     func testToolDefinition() throws {
         let tool = Tool(
             name: "find_symbols",
@@ -437,6 +470,29 @@ final class SwiftMCPServerTests: XCTestCase {
         XCTAssertEqual(languageId("core.c"), "c")
         XCTAssertEqual(languageId("engine.cpp"), "cpp")
         XCTAssertEqual(languageId("NoExtension"), "swift")
+    }
+
+    func testFindSourceKitLSPPrefersActiveToolchain() throws {
+        #if os(macOS)
+        try XCTSkipIf(ProcessInfo.processInfo.environment["SOURCEKIT_LSP_PATH"] != nil, "SOURCEKIT_LSP_PATH overrides discovery")
+
+        let xcrun = Process()
+        xcrun.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+        xcrun.arguments = ["--find", "sourcekit-lsp"]
+        let output = Pipe()
+        xcrun.standardOutput = output
+        xcrun.standardError = FileHandle.nullDevice
+        try xcrun.run()
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        xcrun.waitUntilExit()
+        try XCTSkipIf(xcrun.terminationStatus != 0, "No active toolchain provides sourcekit-lsp")
+
+        let activePath = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        XCTAssertEqual(SwiftLanguageServer.findSourceKitLSP(), activePath)
+        XCTAssertNotNil(SwiftLanguageServer.toolchainVersion(forSourceKitLSP: activePath))
+        #else
+        throw XCTSkip("xcrun is macOS-only")
+        #endif
     }
 
     // MARK: - Helpers

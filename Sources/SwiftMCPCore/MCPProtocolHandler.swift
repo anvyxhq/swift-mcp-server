@@ -256,6 +256,34 @@ public final class MCPProtocolHandler {
         let arguments = params.object("arguments") ?? [:]
 
         let result: Any
+        do {
+            result = try await callTool(name, arguments: arguments)
+        } catch let error as MCPError {
+            throw error
+        } catch {
+            // Tool failures (e.g. SourceKit-LSP errors) are reported as tool
+            // results per the MCP spec, keeping the message for the client.
+            logger.error("Tool '\(name)' failed: \(error.localizedDescription)")
+            let toolResult = ToolCallResult(
+                content: [
+                    ToolContent(type: "text", text: "Error: \(error.localizedDescription)")
+                ],
+                isError: true
+            )
+            return try makeResponse(id: request.id, result: toolResult)
+        }
+
+        let toolResult = ToolCallResult(
+            content: [
+                ToolContent(type: "text", text: renderToolResult(result))
+            ]
+        )
+
+        return try makeResponse(id: request.id, result: toolResult)
+    }
+
+    private func callTool(_ name: String, arguments: JSONObject) async throws -> Any {
+        let result: Any
 
         switch name {
         case "find_symbols":
@@ -286,13 +314,7 @@ public final class MCPProtocolHandler {
             throw MCPError.toolNotFound(name)
         }
 
-        let toolResult = ToolCallResult(
-            content: [
-                ToolContent(type: "text", text: renderToolResult(result))
-            ]
-        )
-
-        return try makeResponse(id: request.id, result: toolResult)
+        return result
     }
 
     // MARK: - Tool Implementations
