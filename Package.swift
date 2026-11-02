@@ -24,6 +24,10 @@ let package = Package(
             name: "SourceKitLSP",
             targets: ["SourceKitLSP"]
         ),
+        .library(
+            name: "APIAvailability",
+            targets: ["APIAvailability"]
+        ),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.6.1"),
@@ -46,9 +50,13 @@ let package = Package(
             ]
         ),
         .target(
+            name: "APIAvailability"
+        ),
+        .target(
             name: "SwiftMCPCore",
             dependencies: [
                 "SourceKitLSP",
+                "APIAvailability",
                 .product(name: "NIOCore", package: "swift-nio"),
                 .product(name: "NIOHTTP1", package: "swift-nio"),
                 .product(name: "NIOPosix", package: "swift-nio"),
@@ -58,7 +66,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SwiftMCPServerTests",
-            dependencies: ["SwiftMCPCore", "SourceKitLSP"]
+            dependencies: ["SwiftMCPCore", "SourceKitLSP", "APIAvailability"]
         ),
     ]
 )

@@ -1,16 +1,20 @@
+import APIAvailability
 import Foundation
 import Logging
 import SourceKitLSP
 
 public final class MCPProtocolHandler {
     private let swiftLanguageServer: SwiftLanguageServer
+    private let availabilityService: APIAvailabilityService
     private let logger: Logger
 
     public init(
         swiftLanguageServer: SwiftLanguageServer,
+        availabilityService: APIAvailabilityService = APIAvailabilityService(),
         logger: Logger
     ) {
         self.swiftLanguageServer = swiftLanguageServer
+        self.availabilityService = availabilityService
         self.logger = logger
     }
 
@@ -111,6 +115,19 @@ public final class MCPProtocolHandler {
                 "required": ["file_path", "line", "character"],
             ]
         }
+
+        let platformSchema: JSONValue = [
+            "type": "string",
+            "enum": .array(ApplePlatform.allCases.map { .string($0.rawValue) }),
+            "description": "Platform to check. Defaults to iOS.",
+        ]
+
+        let moduleFilesSchema: JSONValue = [
+            "type": "array",
+            "items": ["type": "string"],
+            "description":
+                "Optional. Files to compile together with the file. Defaults to its SwiftPM target or Xcode app folder.",
+        ]
 
         let tools = [
             Tool(
@@ -250,6 +267,72 @@ public final class MCPProtocolHandler {
                     "required": ["file_path", "line"],
                 ]
             ),
+            Tool(
+                name: "check_availability",
+                description:
+                    "Check a Swift file against a minimum OS version (e.g. iOS 15): type-checks it with the real SDK at that deployment target and lists every API that needs a newer OS (wrap in `if #available` or raise the target), plus deprecated APIs. Use after writing code for apps that support older iOS versions. Compiles the file with the rest of its SwiftPM target or Xcode app folder.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "file_path": [
+                            "type": "string",
+                            "description": "Path to the Swift file",
+                        ],
+                        "minimum_version": [
+                            "type": "string",
+                            "description": "Deployment target to check against, e.g. \"15\" or \"16.4\"",
+                        ],
+                        "platform": platformSchema,
+                        "module_files": moduleFilesSchema,
+                    ],
+                    "required": ["file_path", "minimum_version"],
+                ]
+            ),
+            Tool(
+                name: "check_availability_matrix",
+                description:
+                    "Check one Swift file against several minimum OS versions at once (e.g. iOS 13, 15, 16, 17, 26) to verify version-specific code paths, and report the lowest version that compiles without changes.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "file_path": [
+                            "type": "string",
+                            "description": "Path to the Swift file",
+                        ],
+                        "versions": [
+                            "type": "array",
+                            "items": ["type": "string"],
+                            "description": "Deployment targets to check, e.g. [\"13\", \"15\", \"17\", \"26\"]",
+                        ],
+                        "platform": platformSchema,
+                        "module_files": moduleFilesSchema,
+                    ],
+                    "required": ["file_path", "versions"],
+                ]
+            ),
+            Tool(
+                name: "api_availability",
+                description:
+                    "Look up when an Apple SDK API became available, deprecated or removed, read from the installed Xcode SDK (SwiftUI, UIKit, Foundation, SwiftData, ... including Objective-C frameworks). Use before choosing an API for a given minimum OS version. Accepts `Type`, `Type.member` or `Type.method(label:)`.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "symbol": [
+                            "type": "string",
+                            "description":
+                                "API name, e.g. \"ContentUnavailableView\", \"UIApplication.openURL\", \"View.scrollContentBackground\"",
+                        ],
+                        "modules": [
+                            "type": "array",
+                            "items": ["type": "string"],
+                            "description":
+                                "Optional. SDK modules to search, e.g. [\"UIKit\"]. Defaults to common app frameworks.",
+                        ],
+                        "platform": platformSchema,
+                    ],
+                    "required": ["symbol"],
+                ]
+            ),
         ]
 
         return try makeResponse(id: request.id, result: ToolsListResult(tools: tools))
@@ -321,6 +404,12 @@ public final class MCPProtocolHandler {
             result = try await handleGetImplementations(arguments)
         case "code_actions":
             result = try await handleCodeActions(arguments)
+        case "check_availability":
+            result = try await handleCheckAvailability(arguments)
+        case "check_availability_matrix":
+            result = try await handleCheckAvailabilityMatrix(arguments)
+        case "api_availability":
+            result = try await handleAPIAvailability(arguments)
         default:
             throw MCPError.toolNotFound(name)
         }
@@ -505,6 +594,105 @@ public final class MCPProtocolHandler {
         return actions.enumerated().map { index, action in
             "\(index + 1). \(action.title) [\(action.isApplicable ? "applicable" : "command-only")]"
         }.joined(separator: "\n")
+    }
+
+    // MARK: - API Availability
+
+    private func handleCheckAvailability(_ arguments: JSONObject) async throws -> String {
+        guard let filePath = arguments.string("file_path"),
+            let minimumVersion = versionArgument(arguments["minimum_version"])
+        else {
+            throw MCPError.invalidParams
+        }
+
+        let report = try await availabilityService.check(
+            filePath: filePath,
+            minimumVersion: minimumVersion,
+            platform: try platformArgument(arguments),
+            moduleFiles: stringArray(arguments.array("module_files"))
+        )
+        return report.summary
+    }
+
+    private func handleCheckAvailabilityMatrix(_ arguments: JSONObject) async throws -> String {
+        guard let filePath = arguments.string("file_path"),
+            let versions = arguments.array("versions")?.compactMap(versionArgument),
+            !versions.isEmpty
+        else {
+            throw MCPError.invalidParams
+        }
+
+        let matrix = try await availabilityService.checkMatrix(
+            filePath: filePath,
+            versions: versions,
+            platform: try platformArgument(arguments),
+            moduleFiles: stringArray(arguments.array("module_files"))
+        )
+        return matrix.summary
+    }
+
+    private func handleAPIAvailability(_ arguments: JSONObject) async throws -> String {
+        guard let symbol = arguments.string("symbol"), !symbol.isEmpty else {
+            throw MCPError.invalidParams
+        }
+
+        let platform = try platformArgument(arguments)
+        let declarations = try await availabilityService.lookup(
+            symbol: symbol,
+            modules: stringArray(arguments.array("modules")),
+            platform: platform
+        )
+
+        guard !declarations.isEmpty else {
+            return
+                "No declaration named '\(symbol)' found in the \(platform.rawValue) SDK. Try `Type.member`, or pass `modules`."
+        }
+
+        let limit = 20
+        var lines = declarations.prefix(limit).map { declaration in
+            let owner = declaration.enclosingType.map { "\($0) · " } ?? ""
+            return
+                "[\(declaration.module)] \(owner)\(declaration.signature)\n    → \(declaration.availability.describe(platform: platform))"
+        }
+        if declarations.count > limit {
+            lines.append("… \(declarations.count - limit) more; narrow the query with `Type.member` or `modules`.")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    private func platformArgument(_ arguments: JSONObject) throws -> ApplePlatform {
+        guard let name = arguments.string("platform") else {
+            return .iOS
+        }
+        guard let platform = ApplePlatform(name: name) else {
+            throw APIAvailabilityError.unknownPlatform(name)
+        }
+        return platform
+    }
+
+    /// Versions may arrive as strings ("15.4") or numbers (15, 16.4).
+    private func versionArgument(_ value: JSONValue?) -> String? {
+        switch value {
+        case .string(let string):
+            return string
+        case .integer(let integer):
+            return String(integer)
+        case .double(let double):
+            return String(double)
+        default:
+            return nil
+        }
+    }
+
+    private func stringArray(_ values: [JSONValue]?) -> [String]? {
+        guard let values else {
+            return nil
+        }
+        let strings = values.compactMap { value -> String? in
+            if case .string(let string) = value { return string }
+            return nil
+        }
+        return strings.isEmpty ? nil : strings
     }
 
     // MARK: - Resources

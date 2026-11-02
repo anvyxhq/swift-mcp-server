@@ -22,6 +22,7 @@ The server routes each request to SourceKit-LSP and returns the **compiler's** a
 - **Precise navigation** — exact definitions, implementations, and references resolved by the type checker.
 - **Structural understanding** — call and type hierarchies, so an agent grasps how a large codebase fits together without reading every file.
 - **Compiler diagnostics and fix-its** — read the actual errors, then apply the compiler's suggested fix.
+- **Correct code for every OS version you support** — check a file against iOS 13, 15, 17, 26… with the real SDK, and look up when any Apple API appeared or was deprecated, so `if #available` branches are right before you ship.
 
 In short, it turns "guessing from text" into "querying the compiler."
 
@@ -86,7 +87,7 @@ This works with any local MCP client, including Claude Code / Claude Desktop and
 
 ## Tools
 
-All tools are backed by SourceKit-LSP. Line and character arguments are **0-based**.
+The navigation, inspection, structure and editing tools are backed by SourceKit-LSP; the availability tools use the compiler and SDKs of the active Xcode. Line and character arguments are **0-based**.
 
 **Navigation & search**
 
@@ -120,6 +121,35 @@ All tools are backed by SourceKit-LSP. Line and character arguments are **0-base
 | `rename_symbol` | Rename a symbol across the workspace and apply the edits | `file_path`, `line`, `character`, `new_name` |
 | `code_actions` | List compiler fix-its / refactorings on a line, or `apply` one by title | `file_path`, `line`, `apply` |
 
+**OS version availability**
+
+| Tool | Purpose | Arguments |
+| --- | --- | --- |
+| `check_availability` | Type-check a file at a minimum OS version and list every API that needs a newer OS (with the version it needs) plus deprecated APIs | `file_path`, `minimum_version`, `platform`, `module_files` |
+| `check_availability_matrix` | Same check at several versions at once, e.g. `["13", "15", "17", "26"]`, reporting the lowest that compiles | `file_path`, `versions`, `platform`, `module_files` |
+| `api_availability` | When an SDK API was introduced, deprecated or removed — SwiftUI, UIKit, Foundation, SwiftData and more, including Objective-C frameworks | `symbol` (`Type`, `Type.member`, `Type.method(label:)`), `modules`, `platform` |
+
+`platform` is `iOS` (default), `macOS`, `tvOS`, `watchOS` or `visionOS`.
+
+Example `check_availability_matrix` result:
+
+```text
+Availability of Screen.swift on iOS:
+  iOS 13.0: ❌ 5 issue(s) — ContentUnavailableView, Observable(), scrollContentBackground, sheetPresentationController, …
+  iOS 15.0: ❌ 4 issue(s) — ContentUnavailableView, Observable(), scrollContentBackground, …
+  iOS 16.0: ❌ 3 issue(s) — ContentUnavailableView, Observable(), …
+  iOS 17.0: ✅ compiles (1 deprecated)
+Lowest checked version that compiles without changes: iOS 17.0.
+```
+
+How the availability tools work:
+
+- The file is compiled together with the rest of its SwiftPM target, or the app folder of its Xcode project, so types from other files resolve. Code inside `if #available` is understood, so correctly guarded code passes.
+- For a SwiftPM package, the target's dependencies are built for the checked platform and version first (cached under `~/Library/Caches/swift-mcp-server`), so `import` works. If a dependency itself does not build at that version, the report says which API in it needs a newer OS.
+- For an Xcode project, modules come from Xcode's last build in DerivedData. Build the app once if a module is reported missing.
+- If an import still cannot be resolved, the result is marked **not checked** rather than passing, because the compiler stops at a missing module.
+- `api_availability` reads the SDK's module interfaces, generating the Swift view of Objective-C frameworks with `swift-synthesize-interface` (Xcode 26 or later). The first lookup per SDK takes a few seconds; later lookups come from a cache.
+
 The server also implements `initialize`, `tools/list`, `tools/call`, `resources/list`, and `resources/read`, and exposes a `swift://workspace` resource describing the active workspace.
 
 > The index-backed tools rely on SourceKit-LSP's global index. Right after startup the index may still be building, so these tools wait a bounded amount of time for it to become ready before returning. The server also warms the index up in the background when it starts, so the first call is not penalized. `rename_symbol` and an applied `code_actions` modify files on disk.
@@ -148,6 +178,8 @@ The server keeps a single SourceKit-LSP session bound to the workspace and trans
 | `format_document` | `textDocument/formatting` |
 | `rename_symbol` | `textDocument/rename` (edits applied to disk) |
 | `code_actions` | `textDocument/codeAction` (an applied action writes its edits to disk) |
+| `check_availability`, `check_availability_matrix` | `swiftc -typecheck` with the platform's SDK and deployment target (not LSP) |
+| `api_availability` | The SDK's `.swiftinterface` files and `swift-synthesize-interface` (not LSP) |
 
 Because results come from the compiler's own index, they reflect real language semantics rather than text matching.
 
@@ -157,7 +189,8 @@ Because results come from the compiler's own index, they reflect real language s
 Sources/
 ├── SwiftMCPServer/      CLI entry point and transport bootstrapping
 ├── SwiftMCPCore/        MCP protocol, transports, and configuration
-└── SourceKitLSP/        standalone SourceKit-LSP client and language types
+├── SourceKitLSP/        standalone SourceKit-LSP client and language types
+└── APIAvailability/     OS-version availability checks and SDK API lookup
 
 Tests/
 └── SwiftMCPServerTests/ protocol and SourceKit-LSP integration tests
