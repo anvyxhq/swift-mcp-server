@@ -9,7 +9,7 @@ let package = Package(
         .macOS(.v13),
         .iOS(.v16),
         .watchOS(.v9),
-        .tvOS(.v16)
+        .tvOS(.v16),
     ],
     products: [
         .executable(
@@ -42,7 +42,7 @@ let package = Package(
         .target(
             name: "SourceKitLSP",
             dependencies: [
-                .product(name: "Logging", package: "swift-log"),
+                .product(name: "Logging", package: "swift-log")
             ]
         ),
         .target(

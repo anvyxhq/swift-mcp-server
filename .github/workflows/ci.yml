@@ -10,10 +10,11 @@ jobs:
   test:
     name: Test
     runs-on: macos-15
+    timeout-minutes: 30
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Swift version
       run: swift --version
@@ -35,15 +36,11 @@ jobs:
   lint:
     name: Lint
     runs-on: macos-15
+    timeout-minutes: 10
 
     steps:
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Swift Format Check
-      run: |
-        if command -v swift-format >/dev/null 2>&1; then
-          swift-format lint --recursive Sources/
-        else
-          echo "swift-format not available, skipping lint"
-        fi
+      run: xcrun swift-format lint --strict --recursive --parallel Sources Tests Package.swift

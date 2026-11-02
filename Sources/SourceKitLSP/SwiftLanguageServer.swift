@@ -29,7 +29,7 @@ public final class SwiftLanguageServer {
         23: "struct",
         24: "event",
         25: "operator",
-        26: "typeParameter"
+        26: "typeParameter",
     ]
 
     private let logger: Logger
@@ -44,7 +44,8 @@ public final class SwiftLanguageServer {
 
     public init(logger: Logger, workspaceRoot: URL? = nil) {
         self.logger = logger
-        self.workspaceRoot = (workspaceRoot ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)).standardizedFileURL
+        self.workspaceRoot =
+            (workspaceRoot ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)).standardizedFileURL
         self.sourceKitLSPPath = Self.findSourceKitLSP() ?? "/usr/bin/sourcekit-lsp"
         self.sourceKitLSPClient = SourceKitLSPClient(
             executablePath: self.sourceKitLSPPath,
@@ -70,13 +71,15 @@ public final class SwiftLanguageServer {
     /// Only then fall back to the common install locations.
     static func findSourceKitLSP() -> String? {
         if let override = ProcessInfo.processInfo.environment["SOURCEKIT_LSP_PATH"],
-           !override.isEmpty,
-           FileManager.default.fileExists(atPath: override) {
+            !override.isEmpty,
+            FileManager.default.fileExists(atPath: override)
+        {
             return override
         }
 
         if let activePath = runTool("/usr/bin/xcrun", arguments: ["--find", "sourcekit-lsp"]),
-           FileManager.default.fileExists(atPath: activePath) {
+            FileManager.default.fileExists(atPath: activePath)
+        {
             return activePath
         }
 
@@ -84,7 +87,7 @@ public final class SwiftLanguageServer {
             "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/sourcekit-lsp",
             "/usr/local/bin/sourcekit-lsp",
             "/opt/homebrew/bin/sourcekit-lsp",
-            "/usr/bin/sourcekit-lsp"
+            "/usr/bin/sourcekit-lsp",
         ]
 
         return commonPaths.first { FileManager.default.fileExists(atPath: $0) }
@@ -131,9 +134,10 @@ public final class SwiftLanguageServer {
         process.waitUntilExit()
 
         guard process.terminationStatus == 0,
-              let text = String(data: data, encoding: .utf8)?
+            let text = String(data: data, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
-              !text.isEmpty else {
+            !text.isEmpty
+        else {
             return nil
         }
 
@@ -157,7 +161,8 @@ public final class SwiftLanguageServer {
             let normalizedPattern = namePattern.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             let symbols = try await sourceKitLSPClient.documentSymbols(fileURL: resolveFileURL(filePath))
 
-            return symbols
+            return
+                symbols
                 .filter { symbol in
                     normalizedPattern.isEmpty || symbol.name.lowercased().contains(normalizedPattern)
                 }
@@ -198,10 +203,12 @@ public final class SwiftLanguageServer {
     public func getHover(at position: Position, in filePath: String) async throws -> Hover? {
         logger.debug("Getting hover info at \(position) in \(filePath)")
         return try await withInitialized {
-            guard let hover = try await sourceKitLSPClient.hover(
-                fileURL: resolveFileURL(filePath),
-                position: makeLSPPosition(position)
-            ) else {
+            guard
+                let hover = try await sourceKitLSPClient.hover(
+                    fileURL: resolveFileURL(filePath),
+                    position: makeLSPPosition(position)
+                )
+            else {
                 return nil
             }
 
@@ -264,7 +271,9 @@ public final class SwiftLanguageServer {
         }
     }
 
-    public func applyCodeAction(titled title: String, atLine line: Int, in filePath: String) async throws -> [AppliedEdit] {
+    public func applyCodeAction(titled title: String, atLine line: Int, in filePath: String) async throws
+        -> [AppliedEdit]
+    {
         logger.debug("Applying code action '\(title)' at line \(line) in \(filePath)")
         return try await withInitialized {
             let actions = try await sourceKitLSPClient.codeActions(fileURL: resolveFileURL(filePath), line: line)
@@ -277,7 +286,9 @@ public final class SwiftLanguageServer {
         }
     }
 
-    public func callHierarchy(at position: Position, in filePath: String, direction: CallHierarchyDirection) async throws -> [SymbolInfo] {
+    public func callHierarchy(at position: Position, in filePath: String, direction: CallHierarchyDirection)
+        async throws -> [SymbolInfo]
+    {
         logger.debug("Call hierarchy (\(direction)) at \(position) in \(filePath)")
         return try await withInitialized {
             let items = try await sourceKitLSPClient.callHierarchy(
@@ -289,7 +300,9 @@ public final class SwiftLanguageServer {
         }
     }
 
-    public func typeHierarchy(at position: Position, in filePath: String, direction: TypeHierarchyDirection) async throws -> [SymbolInfo] {
+    public func typeHierarchy(at position: Position, in filePath: String, direction: TypeHierarchyDirection)
+        async throws -> [SymbolInfo]
+    {
         logger.debug("Type hierarchy (\(direction)) at \(position) in \(filePath)")
         return try await withInitialized {
             let items = try await sourceKitLSPClient.typeHierarchy(
@@ -406,7 +419,8 @@ public final class SwiftLanguageServer {
         var seen = Set<String>()
 
         return edits.filter { edit in
-            let key = "\(edit.range.start.line):\(edit.range.start.character)-\(edit.range.end.line):\(edit.range.end.character)=\(edit.newText)"
+            let key =
+                "\(edit.range.start.line):\(edit.range.start.character)-\(edit.range.end.line):\(edit.range.end.character)=\(edit.newText)"
             return seen.insert(key).inserted
         }
     }
@@ -432,8 +446,8 @@ public final class SwiftLanguageServer {
         }
 
         let ordered = edits.sorted { lhs, rhs in
-            offset(line: lhs.range.start.line, character: lhs.range.start.character) >
-                offset(line: rhs.range.start.line, character: rhs.range.start.character)
+            offset(line: lhs.range.start.line, character: lhs.range.start.character)
+                > offset(line: rhs.range.start.line, character: rhs.range.start.character)
         }
 
         var result = units

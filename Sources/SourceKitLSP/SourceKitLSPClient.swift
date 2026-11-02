@@ -135,7 +135,7 @@ actor SourceKitLSPClient {
             "processId": .integer(Int(ProcessInfo.processInfo.processIdentifier)),
             "clientInfo": [
                 "name": "swift-mcp-server",
-                "version": "2.0.0"
+                "version": "2.0.0",
             ],
             "rootUri": .string(workspaceRoot.absoluteString),
             "capabilities": [
@@ -166,22 +166,22 @@ actor SourceKitLSPClient {
                             "codeActionKind": [
                                 "valueSet": ["", "quickfix", "refactor", "source"]
                             ]
-                        ]
-                    ]
+                        ],
+                    ],
                 ],
                 "workspace": [
                     "workspaceFolders": true,
                     "symbol": [
                         "dynamicRegistration": false
-                    ]
-                ]
+                    ],
+                ],
             ],
             "workspaceFolders": [
                 [
                     "uri": .string(workspaceRoot.absoluteString),
-                    "name": .string(workspaceRoot.lastPathComponent)
+                    "name": .string(workspaceRoot.lastPathComponent),
                 ]
-            ]
+            ],
         ]
 
         _ = try await sendRequest(method: "initialize", params: initializeParams)
@@ -208,7 +208,8 @@ actor SourceKitLSPClient {
         }
     }
 
-    func references(fileURL: URL, position: LSPPosition, includeDeclaration: Bool = true) async throws -> [LSPLocation] {
+    func references(fileURL: URL, position: LSPPosition, includeDeclaration: Bool = true) async throws -> [LSPLocation]
+    {
         let document = try await prepareDocument(fileURL)
 
         return try await poll(
@@ -269,8 +270,8 @@ actor SourceKitLSPClient {
                     "insertSpaces": true,
                     "trimTrailingWhitespace": true,
                     "insertFinalNewline": true,
-                    "trimFinalNewlines": true
-                ]
+                    "trimFinalNewlines": true,
+                ],
             ],
             errorMessage: "Invalid formatting payload from SourceKit-LSP"
         )
@@ -333,7 +334,10 @@ actor SourceKitLSPClient {
     func callHierarchy(fileURL: URL, position: LSPPosition, incoming: Bool) async throws -> [LSPHierarchyItem] {
         let document = try await prepareDocument(fileURL)
 
-        guard let item = try await prepareHierarchy(method: "textDocument/prepareCallHierarchy", uri: document.uri, position: position) else {
+        guard
+            let item = try await prepareHierarchy(
+                method: "textDocument/prepareCallHierarchy", uri: document.uri, position: position)
+        else {
             return []
         }
 
@@ -346,7 +350,10 @@ actor SourceKitLSPClient {
     func typeHierarchy(fileURL: URL, position: LSPPosition, supertypes: Bool) async throws -> [LSPHierarchyItem] {
         let document = try await prepareDocument(fileURL)
 
-        guard let item = try await prepareHierarchy(method: "textDocument/prepareTypeHierarchy", uri: document.uri, position: position) else {
+        guard
+            let item = try await prepareHierarchy(
+                method: "textDocument/prepareTypeHierarchy", uri: document.uri, position: position)
+        else {
             return []
         }
 
@@ -380,8 +387,9 @@ actor SourceKitLSPClient {
         // Best-effort: if none have arrived we still return refactorings.
         let lineDiagnostics = await currentRawDiagnostics(uri: document.uri).filter { value in
             guard let range = value.objectValue?["range"]?.objectValue,
-                  let startLine = range["start"]?.objectValue?.int("line"),
-                  let endLine = range["end"]?.objectValue?.int("line") else {
+                let startLine = range["start"]?.objectValue?.int("line"),
+                let endLine = range["end"]?.objectValue?.int("line")
+            else {
                 return false
             }
             return startLine <= line && line <= endLine
@@ -392,7 +400,7 @@ actor SourceKitLSPClient {
             "range": rangeJSON(startLine: line, startCharacter: 0, endLine: line + 1, endCharacter: 0),
             "context": [
                 "diagnostics": .array(lineDiagnostics)
-            ]
+            ],
         ]
 
         let result = try await requestResult(method: "textDocument/codeAction", params: params)
@@ -420,7 +428,8 @@ actor SourceKitLSPClient {
 
     /// Prepare a call/type hierarchy item at a position, retrying while the
     /// index warms up (prepare returns an empty array until it is ready).
-    private func prepareHierarchy(method: String, uri: String, position: LSPPosition) async throws -> LSPHierarchyItem? {
+    private func prepareHierarchy(method: String, uri: String, position: LSPPosition) async throws -> LSPHierarchyItem?
+    {
         let items = try await poll(
             timeout: indexReadinessTimeout,
             operation: { () async throws -> [LSPHierarchyItem] in
@@ -498,13 +507,13 @@ actor SourceKitLSPClient {
                 params: [
                     "textDocument": [
                         "uri": .string(uri),
-                        "version": .integer(nextVersion)
+                        "version": .integer(nextVersion),
                     ],
                     "contentChanges": [
                         [
                             "text": .string(text)
                         ]
-                    ]
+                    ],
                 ]
             )
             openDocuments[uri] = OpenDocumentState(version: nextVersion, text: text)
@@ -518,7 +527,7 @@ actor SourceKitLSPClient {
                     "uri": .string(uri),
                     "languageId": .string(Self.languageId(for: fileURL)),
                     "version": 1,
-                    "text": .string(text)
+                    "text": .string(text),
                 ]
             ]
         )
@@ -578,7 +587,8 @@ actor SourceKitLSPClient {
             diagnosticWaiters.removeValue(forKey: uri)
         }
 
-        continuation.resume(throwing: SwiftMCPError.communicationError("Timed out waiting for diagnostics from SourceKit-LSP"))
+        continuation.resume(
+            throwing: SwiftMCPError.communicationError("Timed out waiting for diagnostics from SourceKit-LSP"))
     }
 
     private func prepareDocument(_ fileURL: URL) async throws -> PreparedDocument {
@@ -614,7 +624,8 @@ actor SourceKitLSPClient {
         }
 
         if first.objectValue?["selectionRange"] != nil {
-            return try values
+            return
+                try values
                 .map(LSPDocumentSymbol.init(jsonValue:))
                 .flatMap { $0.flattened(uri: fallbackURI) }
         }
@@ -674,7 +685,7 @@ actor SourceKitLSPClient {
     private func rangeJSON(startLine: Int, startCharacter: Int, endLine: Int, endCharacter: Int) -> JSONValue {
         .object([
             "start": .object(["line": .integer(startLine), "character": .integer(startCharacter)]),
-            "end": .object(["line": .integer(endLine), "character": .integer(endCharacter)])
+            "end": .object(["line": .integer(endLine), "character": .integer(endCharacter)]),
         ])
     }
 
@@ -684,8 +695,9 @@ actor SourceKitLSPClient {
         if let documentChanges = object.array("documentChanges") {
             for change in documentChanges {
                 guard let changeObject = change.objectValue,
-                      let uri = changeObject.object("textDocument")?.string("uri"),
-                      let edits = changeObject.array("edits") else {
+                    let uri = changeObject.object("textDocument")?.string("uri"),
+                    let edits = changeObject.array("edits")
+                else {
                     continue
                 }
                 changes[uri, default: []].append(contentsOf: try edits.map(LSPTextEdit.init(jsonValue:)))
@@ -706,10 +718,12 @@ actor SourceKitLSPClient {
         .object(["uri": .string(uri)])
     }
 
-    private func textDocumentPositionParams(uri: String, position: LSPPosition, additional: JSONObject = [:]) -> JSONObject {
+    private func textDocumentPositionParams(uri: String, position: LSPPosition, additional: JSONObject = [:])
+        -> JSONObject
+    {
         var params: JSONObject = [
             "textDocument": textDocumentIdentifier(uri),
-            "position": .object(position.jsonObject)
+            "position": .object(position.jsonObject),
         ]
 
         for (key, value) in additional {
@@ -724,11 +738,11 @@ actor SourceKitLSPClient {
     /// indexing a freshly opened document) rather than a genuine failure.
     /// These are transient and worth retrying for a short window.
     private static let transientResponseErrorCodes: Set<Int> = [
-        -32002, // ServerNotInitialized
-        -32603, // InternalError
-        -32801, // ContentModified
-        -32802, // ServerCancelled
-        -32803  // RequestFailed
+        -32002,  // ServerNotInitialized
+        -32603,  // InternalError
+        -32801,  // ContentModified
+        -32802,  // ServerCancelled
+        -32803,  // RequestFailed
     ]
 
     private func requestResult(
@@ -744,8 +758,9 @@ actor SourceKitLSPClient {
                 return try await sendRequest(method: method, params: params)
             } catch let error as SourceKitLSPClientError {
                 guard case .responseError(let code, _) = error,
-                      Self.transientResponseErrorCodes.contains(code),
-                      Date() < deadline else {
+                    Self.transientResponseErrorCodes.contains(code),
+                    Date() < deadline
+                else {
                     throw error
                 }
 
@@ -822,7 +837,7 @@ actor SourceKitLSPClient {
             "jsonrpc": "2.0",
             "id": .integer(requestID),
             "method": .string(method),
-            "params": .object(params ?? [:])
+            "params": .object(params ?? [:]),
         ]
 
         return try await withCheckedThrowingContinuation { continuation in
@@ -841,7 +856,7 @@ actor SourceKitLSPClient {
         let message: JSONObject = [
             "jsonrpc": "2.0",
             "method": .string(method),
-            "params": .object(params ?? [:])
+            "params": .object(params ?? [:]),
         ]
 
         try writeMessage(message)
@@ -870,9 +885,10 @@ actor SourceKitLSPClient {
 
     private func handleStandardError(_ data: Data) async {
         guard !data.isEmpty,
-              let message = String(data: data, encoding: .utf8)?
+            let message = String(data: data, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
-              !message.isEmpty else {
+            !message.isEmpty
+        else {
             return
         }
 
@@ -934,7 +950,8 @@ actor SourceKitLSPClient {
 
         let headerData = stdoutBuffer.subdata(in: 0..<headerRange.lowerBound)
         guard let headerString = String(data: headerData, encoding: .utf8),
-              let contentLength = parseContentLength(headerString) else {
+            let contentLength = parseContentLength(headerString)
+        else {
             throw SwiftMCPError.communicationError("Invalid LSP header from SourceKit-LSP")
         }
 
@@ -987,7 +1004,8 @@ actor SourceKitLSPClient {
 
     private func handleNotification(method: String, params: JSONObject) {
         guard method == "textDocument/publishDiagnostics",
-              let uri = params.string("uri") else {
+            let uri = params.string("uri")
+        else {
             return
         }
 
@@ -1058,8 +1076,9 @@ struct LSPTextEdit: LSPJSONDecodable {
 
     init(jsonValue: JSONValue) throws {
         guard let object = jsonValue.objectValue,
-              let rangeValue = object["range"],
-              let newText = object.string("newText") else {
+            let rangeValue = object["range"],
+            let newText = object.string("newText")
+        else {
             throw SwiftMCPError.communicationError("Invalid text edit payload from SourceKit-LSP")
         }
 
@@ -1077,8 +1096,9 @@ struct LSPDiagnostic: LSPJSONDecodable {
 
     init(jsonValue: JSONValue) throws {
         guard let object = jsonValue.objectValue,
-              let rangeValue = object["range"],
-              let message = object.string("message") else {
+            let rangeValue = object["range"],
+            let message = object.string("message")
+        else {
             throw SwiftMCPError.communicationError("Invalid diagnostic payload from SourceKit-LSP")
         }
 
@@ -1115,9 +1135,10 @@ struct LSPSymbolInfo: LSPJSONDecodable {
 
     init(jsonValue: JSONValue) throws {
         guard let object = jsonValue.objectValue,
-              let name = object.string("name"),
-              let kind = object.int("kind"),
-              let locationValue = object["location"] else {
+            let name = object.string("name"),
+            let kind = object.int("kind"),
+            let locationValue = object["location"]
+        else {
             throw SwiftMCPError.communicationError("Invalid symbol payload from SourceKit-LSP")
         }
 
@@ -1151,10 +1172,11 @@ struct LSPHierarchyItem: LSPJSONDecodable {
 
     init(jsonValue: JSONValue) throws {
         guard let object = jsonValue.objectValue,
-              let name = object.string("name"),
-              let kind = object.int("kind"),
-              let uri = object.string("uri"),
-              let selectionRangeValue = object["selectionRange"] else {
+            let name = object.string("name"),
+            let kind = object.int("kind"),
+            let uri = object.string("uri"),
+            let selectionRangeValue = object["selectionRange"]
+        else {
             throw SwiftMCPError.communicationError("Invalid hierarchy item payload from SourceKit-LSP")
         }
 
@@ -1177,10 +1199,11 @@ struct LSPDocumentSymbol: LSPJSONDecodable {
 
     init(jsonValue: JSONValue) throws {
         guard let object = jsonValue.objectValue,
-              let name = object.string("name"),
-              let kind = object.int("kind"),
-              let rangeValue = object["range"],
-              let selectionRangeValue = object["selectionRange"] else {
+            let name = object.string("name"),
+            let kind = object.int("kind"),
+            let rangeValue = object["range"],
+            let selectionRangeValue = object["selectionRange"]
+        else {
             throw SwiftMCPError.communicationError("Invalid document symbol payload from SourceKit-LSP")
         }
 
@@ -1217,8 +1240,9 @@ struct LSPLocation: LSPJSONDecodable {
 
     init(jsonValue: JSONValue) throws {
         guard let object = jsonValue.objectValue,
-              let uri = object.string("uri"),
-              let rangeValue = object["range"] else {
+            let uri = object.string("uri"),
+            let rangeValue = object["range"]
+        else {
             throw SwiftMCPError.communicationError("Invalid location payload from SourceKit-LSP")
         }
 
@@ -1242,9 +1266,10 @@ struct LSPLocationLink: LSPJSONDecodable {
 
     init(jsonValue: JSONValue) throws {
         guard let object = jsonValue.objectValue,
-              let targetUri = object.string("targetUri"),
-              let targetRangeValue = object["targetRange"],
-              let targetSelectionRangeValue = object["targetSelectionRange"] else {
+            let targetUri = object.string("targetUri"),
+            let targetRangeValue = object["targetRange"],
+            let targetSelectionRangeValue = object["targetSelectionRange"]
+        else {
             throw SwiftMCPError.communicationError("Invalid location link payload from SourceKit-LSP")
         }
 
@@ -1261,7 +1286,8 @@ struct LSPHover: LSPJSONDecodable {
 
     init(jsonValue: JSONValue) throws {
         guard let object = jsonValue.objectValue,
-              let contents = object["contents"] else {
+            let contents = object["contents"]
+        else {
             throw SwiftMCPError.communicationError("Invalid hover payload from SourceKit-LSP")
         }
 
@@ -1274,14 +1300,16 @@ struct LSPHover: LSPJSONDecodable {
         case .string(let string):
             return string
         case .array(let items):
-            return try items
+            return
+                try items
                 .map(render)
                 .filter { !$0.isEmpty }
                 .joined(separator: "\n\n")
         case .object(let object):
             if let kind = object.string("kind"),
-               let markupValue = object.string("value"),
-               kind == "markdown" || kind == "plaintext" {
+                let markupValue = object.string("value"),
+                kind == "markdown" || kind == "plaintext"
+            {
                 return markupValue
             }
 
@@ -1305,8 +1333,9 @@ struct LSPRange: LSPJSONDecodable {
 
     init(jsonValue: JSONValue) throws {
         guard let object = jsonValue.objectValue,
-              let startValue = object["start"],
-              let endValue = object["end"] else {
+            let startValue = object["start"],
+            let endValue = object["end"]
+        else {
             throw SwiftMCPError.communicationError("Invalid range payload from SourceKit-LSP")
         }
 
@@ -1326,8 +1355,9 @@ struct LSPPosition: LSPJSONDecodable {
 
     init(jsonValue: JSONValue) throws {
         guard let object = jsonValue.objectValue,
-              let line = object.int("line"),
-              let character = object.int("character") else {
+            let line = object.int("line"),
+            let character = object.int("character")
+        else {
             throw SwiftMCPError.communicationError("Invalid position payload from SourceKit-LSP")
         }
 
@@ -1338,7 +1368,7 @@ struct LSPPosition: LSPJSONDecodable {
     var jsonObject: JSONObject {
         [
             "line": .integer(line),
-            "character": .integer(character)
+            "character": .integer(character),
         ]
     }
 }

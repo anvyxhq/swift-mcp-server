@@ -1,7 +1,7 @@
 import Foundation
+import Logging
 import NIO
 import NIOHTTP1
-import Logging
 
 final class HTTPHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = HTTPServerRequestPart
@@ -74,7 +74,7 @@ final class HTTPHandler: ChannelInboundHandler, @unchecked Sendable {
             ("Access-Control-Allow-Origin", "*"),
             ("Access-Control-Allow-Methods", "POST, OPTIONS"),
             ("Access-Control-Allow-Headers", "Content-Type"),
-            ("Access-Control-Max-Age", "86400")
+            ("Access-Control-Max-Age", "86400"),
         ])
 
         let head = HTTPResponseHead(version: .http1_1, status: .ok, headers: headers)
@@ -128,7 +128,7 @@ final class HTTPHandler: ChannelInboundHandler, @unchecked Sendable {
             let headers = HTTPHeaders([
                 ("Content-Type", "application/json"),
                 ("Content-Length", "\(data.count)"),
-                ("Access-Control-Allow-Origin", "*")
+                ("Access-Control-Allow-Origin", "*"),
             ])
 
             let head = HTTPResponseHead(version: .http1_1, status: .ok, headers: headers)
@@ -147,14 +147,14 @@ final class HTTPHandler: ChannelInboundHandler, @unchecked Sendable {
         responseReceived = true
 
         let errorResponse = """
-        {
-            "jsonrpc": "2.0",
-            "error": {
-                "code": \(status.code),
-                "message": "\(message)"
+            {
+                "jsonrpc": "2.0",
+                "error": {
+                    "code": \(status.code),
+                    "message": "\(message)"
+                }
             }
-        }
-        """
+            """
 
         let data = errorResponse.data(using: .utf8)!
         let buffer = context.channel.allocator.buffer(data: data)
@@ -162,7 +162,7 @@ final class HTTPHandler: ChannelInboundHandler, @unchecked Sendable {
         let headers = HTTPHeaders([
             ("Content-Type", "application/json"),
             ("Content-Length", "\(data.count)"),
-            ("Access-Control-Allow-Origin", "*")
+            ("Access-Control-Allow-Origin", "*"),
         ])
 
         let head = HTTPResponseHead(version: .http1_1, status: status, headers: headers)
@@ -183,7 +183,7 @@ final class HTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                 "status": "healthy",
                 "server": "Swift MCP Server",
                 "version": "2.0.0",
-                "timestamp": .string(ISO8601DateFormatter().string(from: Date()))
+                "timestamp": .string(ISO8601DateFormatter().string(from: Date())),
             ])
         )
 
@@ -199,12 +199,12 @@ final class HTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                 "description": "A Model Context Protocol server exposing SourceKit-LSP for semantic Swift tooling",
                 "capabilities": [
                     "roots": ["listChanged": true],
-                    "sampling": .object([:])
+                    "sampling": .object([:]),
                 ],
                 "serverInfo": [
                     "name": "swift-mcp-server",
-                    "version": "2.0.0"
-                ]
+                    "version": "2.0.0",
+                ],
             ])
         )
 
@@ -213,7 +213,8 @@ final class HTTPHandler: ChannelInboundHandler, @unchecked Sendable {
 
     private func extractRequestID(from data: Data) -> RequestID? {
         guard let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let rawID = jsonObject["id"] else {
+            let rawID = jsonObject["id"]
+        else {
             return nil
         }
 
