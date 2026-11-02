@@ -125,7 +125,8 @@ public final class StdioTransport: @unchecked Sendable {
 
     private func extractRequestID(from data: Data) -> RequestID? {
         guard let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let rawID = jsonObject["id"] else {
+            let rawID = jsonObject["id"]
+        else {
             return nil
         }
 

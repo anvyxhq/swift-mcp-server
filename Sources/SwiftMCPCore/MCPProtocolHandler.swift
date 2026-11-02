@@ -61,18 +61,18 @@ public final class MCPProtocolHandler {
             "properties": [
                 "file_path": [
                     "type": "string",
-                    "description": "Path to the Swift file"
+                    "description": "Path to the Swift file",
                 ],
                 "line": [
                     "type": "integer",
-                    "description": "Line number (0-based)"
+                    "description": "Line number (0-based)",
                 ],
                 "character": [
                     "type": "integer",
-                    "description": "Character position (0-based)"
-                ]
+                    "description": "Character position (0-based)",
+                ],
             ],
-            "required": ["file_path", "line", "character"]
+            "required": ["file_path", "line", "character"],
         ]
 
         let filePathSchema: JSONObject = [
@@ -80,10 +80,10 @@ public final class MCPProtocolHandler {
             "properties": [
                 "file_path": [
                     "type": "string",
-                    "description": "Path to the Swift file"
+                    "description": "Path to the Swift file",
                 ]
             ],
-            "required": ["file_path"]
+            "required": ["file_path"],
         ]
 
         func hierarchySchema(directions: [String], directionDescription: String) -> JSONObject {
@@ -92,43 +92,44 @@ public final class MCPProtocolHandler {
                 "properties": [
                     "file_path": [
                         "type": "string",
-                        "description": "Path to the Swift file"
+                        "description": "Path to the Swift file",
                     ],
                     "line": [
                         "type": "integer",
-                        "description": "Line number (0-based)"
+                        "description": "Line number (0-based)",
                     ],
                     "character": [
                         "type": "integer",
-                        "description": "Character position (0-based)"
+                        "description": "Character position (0-based)",
                     ],
                     "direction": [
                         "type": "string",
                         "enum": .array(directions.map(JSONValue.string)),
-                        "description": .string(directionDescription)
-                    ]
+                        "description": .string(directionDescription),
+                    ],
                 ],
-                "required": ["file_path", "line", "character"]
+                "required": ["file_path", "line", "character"],
             ]
         }
 
         let tools = [
             Tool(
                 name: "find_symbols",
-                description: "List Swift symbols declared in a file, optionally filtered by a name pattern. Backed by SourceKit-LSP.",
+                description:
+                    "List Swift symbols declared in a file, optionally filtered by a name pattern. Backed by SourceKit-LSP.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "file_path": [
                             "type": "string",
-                            "description": "Path to the Swift file"
+                            "description": "Path to the Swift file",
                         ],
                         "name_pattern": [
                             "type": "string",
-                            "description": "Substring to match against symbol names"
-                        ]
+                            "description": "Substring to match against symbol names",
+                        ],
                     ],
-                    "required": ["file_path", "name_pattern"]
+                    "required": ["file_path", "name_pattern"],
                 ]
             ),
             Tool(
@@ -143,7 +144,8 @@ public final class MCPProtocolHandler {
             ),
             Tool(
                 name: "get_hover_info",
-                description: "Get hover documentation and type information for the symbol at a file position. Backed by SourceKit-LSP.",
+                description:
+                    "Get hover documentation and type information for the symbol at a file position. Backed by SourceKit-LSP.",
                 inputSchema: positionSchema
             ),
             Tool(
@@ -153,52 +155,56 @@ public final class MCPProtocolHandler {
             ),
             Tool(
                 name: "get_diagnostics",
-                description: "Get compiler diagnostics (errors and warnings) for a Swift document. Backed by SourceKit-LSP.",
+                description:
+                    "Get compiler diagnostics (errors and warnings) for a Swift document. Backed by SourceKit-LSP.",
                 inputSchema: filePathSchema
             ),
             Tool(
                 name: "search_workspace_symbols",
-                description: "Search for symbols by name across the whole workspace, not just one file. Backed by SourceKit-LSP's global index.",
+                description:
+                    "Search for symbols by name across the whole workspace, not just one file. Backed by SourceKit-LSP's global index.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "query": [
                             "type": "string",
-                            "description": "Symbol name or substring to search for"
+                            "description": "Symbol name or substring to search for",
                         ]
                     ],
-                    "required": ["query"]
+                    "required": ["query"],
                 ]
             ),
             Tool(
                 name: "rename_symbol",
-                description: "Rename the symbol at a file position across the whole workspace and write the changes to disk. Backed by SourceKit-LSP.",
+                description:
+                    "Rename the symbol at a file position across the whole workspace and write the changes to disk. Backed by SourceKit-LSP.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "file_path": [
                             "type": "string",
-                            "description": "Path to the Swift file"
+                            "description": "Path to the Swift file",
                         ],
                         "line": [
                             "type": "integer",
-                            "description": "Line number (0-based)"
+                            "description": "Line number (0-based)",
                         ],
                         "character": [
                             "type": "integer",
-                            "description": "Character position (0-based)"
+                            "description": "Character position (0-based)",
                         ],
                         "new_name": [
                             "type": "string",
-                            "description": "New name for the symbol"
-                        ]
+                            "description": "New name for the symbol",
+                        ],
                     ],
-                    "required": ["file_path", "line", "character", "new_name"]
+                    "required": ["file_path", "line", "character", "new_name"],
                 ]
             ),
             Tool(
                 name: "call_hierarchy",
-                description: "Find callers (incoming) or callees (outgoing) of the function at a file position. Backed by SourceKit-LSP.",
+                description:
+                    "Find callers (incoming) or callees (outgoing) of the function at a file position. Backed by SourceKit-LSP.",
                 inputSchema: hierarchySchema(
                     directions: ["incoming", "outgoing"],
                     directionDescription: "\"incoming\" for callers, \"outgoing\" for callees. Defaults to incoming."
@@ -206,39 +212,44 @@ public final class MCPProtocolHandler {
             ),
             Tool(
                 name: "type_hierarchy",
-                description: "Find supertypes or subtypes/conformers of the type at a file position. Backed by SourceKit-LSP.",
+                description:
+                    "Find supertypes or subtypes/conformers of the type at a file position. Backed by SourceKit-LSP.",
                 inputSchema: hierarchySchema(
                     directions: ["supertypes", "subtypes"],
-                    directionDescription: "\"supertypes\" for parents/protocols, \"subtypes\" for subclasses/conformers. Defaults to subtypes."
+                    directionDescription:
+                        "\"supertypes\" for parents/protocols, \"subtypes\" for subclasses/conformers. Defaults to subtypes."
                 )
             ),
             Tool(
                 name: "get_implementations",
-                description: "Find concrete implementations of the protocol requirement or method at a file position. Backed by SourceKit-LSP.",
+                description:
+                    "Find concrete implementations of the protocol requirement or method at a file position. Backed by SourceKit-LSP.",
                 inputSchema: positionSchema
             ),
             Tool(
                 name: "code_actions",
-                description: "List compiler fix-its and refactorings available on a line, or apply one by title (writing the change to disk). Backed by SourceKit-LSP.",
+                description:
+                    "List compiler fix-its and refactorings available on a line, or apply one by title (writing the change to disk). Backed by SourceKit-LSP.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "file_path": [
                             "type": "string",
-                            "description": "Path to the Swift file"
+                            "description": "Path to the Swift file",
                         ],
                         "line": [
                             "type": "integer",
-                            "description": "Line number (0-based)"
+                            "description": "Line number (0-based)",
                         ],
                         "apply": [
                             "type": "string",
-                            "description": "Optional. Title of a listed code action to apply. Omit to just list available actions."
-                        ]
+                            "description":
+                                "Optional. Title of a listed code action to apply. Omit to just list available actions.",
+                        ],
                     ],
-                    "required": ["file_path", "line"]
+                    "required": ["file_path", "line"],
                 ]
-            )
+            ),
         ]
 
         return try makeResponse(id: request.id, result: ToolsListResult(tools: tools))
@@ -321,7 +332,8 @@ public final class MCPProtocolHandler {
 
     private func handleFindSymbols(_ arguments: JSONObject) async throws -> [SymbolInfo] {
         guard let filePath = arguments.string("file_path"),
-              let namePattern = arguments.string("name_pattern") else {
+            let namePattern = arguments.string("name_pattern")
+        else {
             throw MCPError.invalidParams
         }
 
@@ -330,8 +342,9 @@ public final class MCPProtocolHandler {
 
     private func handleFindReferences(_ arguments: JSONObject) async throws -> [String] {
         guard let filePath = arguments.string("file_path"),
-              let line = arguments.int("line"),
-              let character = arguments.int("character") else {
+            let line = arguments.int("line"),
+            let character = arguments.int("character")
+        else {
             throw MCPError.invalidParams
         }
 
@@ -343,8 +356,9 @@ public final class MCPProtocolHandler {
 
     private func handleGetDefinition(_ arguments: JSONObject) async throws -> [String] {
         guard let filePath = arguments.string("file_path"),
-              let line = arguments.int("line"),
-              let character = arguments.int("character") else {
+            let line = arguments.int("line"),
+            let character = arguments.int("character")
+        else {
             throw MCPError.invalidParams
         }
 
@@ -356,8 +370,9 @@ public final class MCPProtocolHandler {
 
     private func handleGetHoverInfo(_ arguments: JSONObject) async throws -> String {
         guard let filePath = arguments.string("file_path"),
-              let line = arguments.int("line"),
-              let character = arguments.int("character") else {
+            let line = arguments.int("line"),
+            let character = arguments.int("character")
+        else {
             throw MCPError.invalidParams
         }
 
@@ -404,9 +419,10 @@ public final class MCPProtocolHandler {
 
     private func handleRenameSymbol(_ arguments: JSONObject) async throws -> String {
         guard let filePath = arguments.string("file_path"),
-              let line = arguments.int("line"),
-              let character = arguments.int("character"),
-              let newName = arguments.string("new_name") else {
+            let line = arguments.int("line"),
+            let character = arguments.int("character"),
+            let newName = arguments.string("new_name")
+        else {
             throw MCPError.invalidParams
         }
 
@@ -424,8 +440,9 @@ public final class MCPProtocolHandler {
 
     private func handleCallHierarchy(_ arguments: JSONObject) async throws -> [SymbolInfo] {
         guard let filePath = arguments.string("file_path"),
-              let line = arguments.int("line"),
-              let character = arguments.int("character") else {
+            let line = arguments.int("line"),
+            let character = arguments.int("character")
+        else {
             throw MCPError.invalidParams
         }
 
@@ -436,8 +453,9 @@ public final class MCPProtocolHandler {
 
     private func handleTypeHierarchy(_ arguments: JSONObject) async throws -> [SymbolInfo] {
         guard let filePath = arguments.string("file_path"),
-              let line = arguments.int("line"),
-              let character = arguments.int("character") else {
+            let line = arguments.int("line"),
+            let character = arguments.int("character")
+        else {
             throw MCPError.invalidParams
         }
 
@@ -448,8 +466,9 @@ public final class MCPProtocolHandler {
 
     private func handleGetImplementations(_ arguments: JSONObject) async throws -> [String] {
         guard let filePath = arguments.string("file_path"),
-              let line = arguments.int("line"),
-              let character = arguments.int("character") else {
+            let line = arguments.int("line"),
+            let character = arguments.int("character")
+        else {
             throw MCPError.invalidParams
         }
 
@@ -460,7 +479,8 @@ public final class MCPProtocolHandler {
 
     private func handleCodeActions(_ arguments: JSONObject) async throws -> String {
         guard let filePath = arguments.string("file_path"),
-              let line = arguments.int("line") else {
+            let line = arguments.int("line")
+        else {
             throw MCPError.invalidParams
         }
 
@@ -504,7 +524,8 @@ public final class MCPProtocolHandler {
 
     private func handleResourceRead(_ request: MCPRequest) async throws -> MCPResponse {
         guard let params = request.params,
-              let uri = params.string("uri") else {
+            let uri = params.string("uri")
+        else {
             throw MCPError.invalidParams
         }
 
@@ -513,12 +534,12 @@ public final class MCPProtocolHandler {
         switch uri {
         case "swift://workspace":
             content = """
-            {
-                "type": "swift_workspace",
-                "capabilities": ["symbol_search", "references", "definitions", "hover", "formatting", "diagnostics"],
-                "sourcekit_lsp": "available"
-            }
-            """
+                {
+                    "type": "swift_workspace",
+                    "capabilities": ["symbol_search", "references", "definitions", "hover", "formatting", "diagnostics"],
+                    "sourcekit_lsp": "available"
+                }
+                """
         default:
             throw MCPError.resourceNotFound(uri)
         }
@@ -549,9 +570,11 @@ public final class MCPProtocolHandler {
         case let strings as [String]:
             return strings.isEmpty ? "No results." : strings.joined(separator: "\n")
         case let symbols as [SymbolInfo]:
-            return symbols.isEmpty ? "No symbols found." : symbols.map {
-                "\($0.kind) \($0.name) @ \($0.location.uri):\($0.location.line):\($0.location.character)"
-            }.joined(separator: "\n")
+            return symbols.isEmpty
+                ? "No symbols found."
+                : symbols.map {
+                    "\($0.kind) \($0.name) @ \($0.location.uri):\($0.location.line):\($0.location.character)"
+                }.joined(separator: "\n")
         default:
             return String(describing: result)
         }

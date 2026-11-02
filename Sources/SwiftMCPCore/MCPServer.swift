@@ -1,8 +1,8 @@
 import Foundation
 import Logging
 import NIO
-import NIOHTTP1
 import NIOFoundationCompat
+import NIOHTTP1
 import SourceKitLSP
 
 public final class MCPServer: @unchecked Sendable {
@@ -11,7 +11,7 @@ public final class MCPServer: @unchecked Sendable {
     private let logger: Logger
     private let group: EventLoopGroup
     private var channel: Channel?
-    
+
     private let swiftLanguageServer: SwiftLanguageServer
     private let mcpProtocolHandler: MCPProtocolHandler
 
@@ -32,11 +32,11 @@ public final class MCPServer: @unchecked Sendable {
             logger: logger
         )
     }
-    
+
     deinit {
         try? group.syncShutdownGracefully()
     }
-    
+
     public func start() async throws {
         let bootstrap = ServerBootstrap(group: group)
             .serverChannelOption(ChannelOptions.backlog, value: 256)
@@ -46,7 +46,7 @@ public final class MCPServer: @unchecked Sendable {
                     mcpProtocolHandler: self.mcpProtocolHandler,
                     logger: self.logger
                 )
-                
+
                 return channel.pipeline.configureHTTPServerPipeline(
                     withErrorHandling: true
                 ).flatMap {
@@ -56,10 +56,10 @@ public final class MCPServer: @unchecked Sendable {
             .childChannelOption(ChannelOptions.socketOption(.so_reuseaddr), value: 1)
             .childChannelOption(ChannelOptions.maxMessagesPerRead, value: 16)
             .childChannelOption(ChannelOptions.recvAllocator, value: AdaptiveRecvByteBufferAllocator())
-        
+
         let channel = try await bootstrap.bind(host: host, port: port).get()
         self.channel = channel
-        
+
         logger.info("Swift MCP Server started on \(host):\(port)")
         logger.info("Server is ready to handle MCP requests")
 
@@ -72,7 +72,7 @@ public final class MCPServer: @unchecked Sendable {
         // Wait until the server is closed
         try await channel.closeFuture.get()
     }
-    
+
     public func stop() async throws {
         logger.info("Shutting down Swift MCP Server...")
 

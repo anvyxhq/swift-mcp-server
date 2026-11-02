@@ -153,28 +153,28 @@ extension JSONValue: ExpressibleByDictionaryLiteral {
     }
 }
 
-public extension Dictionary where Key == String, Value == JSONValue {
-    func string(_ key: String) -> String? {
+extension Dictionary where Key == String, Value == JSONValue {
+    public func string(_ key: String) -> String? {
         self[key]?.stringValue
     }
 
-    func int(_ key: String) -> Int? {
+    public func int(_ key: String) -> Int? {
         self[key]?.intValue
     }
 
-    func double(_ key: String) -> Double? {
+    public func double(_ key: String) -> Double? {
         self[key]?.doubleValue
     }
 
-    func bool(_ key: String) -> Bool? {
+    public func bool(_ key: String) -> Bool? {
         self[key]?.boolValue
     }
 
-    func object(_ key: String) -> JSONObject? {
+    public func object(_ key: String) -> JSONObject? {
         self[key]?.objectValue
     }
 
-    func array(_ key: String) -> [JSONValue]? {
+    public func array(_ key: String) -> [JSONValue]? {
         self[key]?.arrayValue
     }
 }

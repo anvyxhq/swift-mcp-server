@@ -1,7 +1,8 @@
-import XCTest
 import Logging
-@testable import SwiftMCPCore
+import XCTest
+
 @testable import SourceKitLSP
+@testable import SwiftMCPCore
 
 final class SwiftMCPServerTests: XCTestCase {
 
@@ -17,19 +18,19 @@ final class SwiftMCPServerTests: XCTestCase {
 
     func testMCPRequestDecodingSupportsNestedJSON() throws {
         let json = """
-        {
-            "jsonrpc": "2.0",
-            "id": "test-id",
-            "method": "tools/call",
-            "params": {
-                "name": "find_symbols",
-                "arguments": {
-                    "file_path": "/tmp/project/main.swift",
-                    "name_pattern": "Greeter"
+            {
+                "jsonrpc": "2.0",
+                "id": "test-id",
+                "method": "tools/call",
+                "params": {
+                    "name": "find_symbols",
+                    "arguments": {
+                        "file_path": "/tmp/project/main.swift",
+                        "name_pattern": "Greeter"
+                    }
                 }
             }
-        }
-        """
+            """
 
         let data = try XCTUnwrap(json.data(using: .utf8))
         let request = try JSONDecoder().decode(MCPRequest.self, from: data)
@@ -47,7 +48,7 @@ final class SwiftMCPServerTests: XCTestCase {
             id: .string("test-id"),
             result: [
                 "status": "ok",
-                "count": 1
+                "count": 1,
             ]
         )
 
@@ -93,7 +94,7 @@ final class SwiftMCPServerTests: XCTestCase {
                 "call_hierarchy",
                 "type_hierarchy",
                 "get_implementations",
-                "code_actions"
+                "code_actions",
             ]
         )
     }
@@ -109,7 +110,7 @@ final class SwiftMCPServerTests: XCTestCase {
             method: "tools/call",
             params: [
                 "name": "analyze_project",
-                "arguments": [:]
+                "arguments": [:],
             ]
         )
 
@@ -140,8 +141,8 @@ final class SwiftMCPServerTests: XCTestCase {
                 "arguments": [
                     "file_path": .string("/nonexistent/\(UUID().uuidString)/Missing.swift"),
                     "line": 0,
-                    "character": 0
-                ]
+                    "character": 0,
+                ],
             ]
         )
 
@@ -166,7 +167,7 @@ final class SwiftMCPServerTests: XCTestCase {
                 "type": "object",
                 "properties": [
                     "file_path": ["type": "string"]
-                ]
+                ],
             ]
         )
 
@@ -194,7 +195,7 @@ final class SwiftMCPServerTests: XCTestCase {
         }
         }
         """
-            .write(to: sourceFile, atomically: true, encoding: .utf8)
+        .write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let logger = Logger(label: "test")
         let swiftLanguageServer = SwiftLanguageServer(logger: logger, workspaceRoot: workspace)
@@ -218,7 +219,7 @@ final class SwiftMCPServerTests: XCTestCase {
             let number: Int = "oops"
         }
         """
-            .write(to: sourceFile, atomically: true, encoding: .utf8)
+        .write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let logger = Logger(label: "test")
         let swiftLanguageServer = SwiftLanguageServer(logger: logger, workspaceRoot: workspace)
@@ -226,7 +227,10 @@ final class SwiftMCPServerTests: XCTestCase {
 
         let diagnostics = try await swiftLanguageServer.getDiagnostics(for: sourceFile.path)
         XCTAssertFalse(diagnostics.isEmpty)
-        XCTAssertTrue(diagnostics.contains { $0.message.contains("Cannot convert value of type 'String' to specified type 'Int'") })
+        XCTAssertTrue(
+            diagnostics.contains {
+                $0.message.contains("Cannot convert value of type 'String' to specified type 'Int'")
+            })
     }
 
     func testNavigationRequestsUseSourceKitLSP() async throws {
@@ -249,7 +253,7 @@ final class SwiftMCPServerTests: XCTestCase {
             }
         }
         """
-            .write(to: definitionFile, atomically: true, encoding: .utf8)
+        .write(to: definitionFile, atomically: true, encoding: .utf8)
 
         try """
         import Foundation
@@ -257,7 +261,7 @@ final class SwiftMCPServerTests: XCTestCase {
         let greeter = Greeter(name: "World")
         print(greeter.greet())
         """
-            .write(to: usageFile, atomically: true, encoding: .utf8)
+        .write(to: usageFile, atomically: true, encoding: .utf8)
 
         let logger = Logger(label: "test")
         let swiftLanguageServer = SwiftLanguageServer(logger: logger, workspaceRoot: workspace)
@@ -311,11 +315,11 @@ final class SwiftMCPServerTests: XCTestCase {
             func greet() -> String { "hi" }
         }
         """
-            .write(
-                to: workspace.appendingPathComponent("Sources/WorkspaceSymbolWorkspace/main.swift"),
-                atomically: true,
-                encoding: .utf8
-            )
+        .write(
+            to: workspace.appendingPathComponent("Sources/WorkspaceSymbolWorkspace/main.swift"),
+            atomically: true,
+            encoding: .utf8
+        )
 
         let server = SwiftLanguageServer(logger: Logger(label: "test"), workspaceRoot: workspace)
         defer { Task { await server.shutdown() } }
@@ -339,12 +343,13 @@ final class SwiftMCPServerTests: XCTestCase {
         let value = Greeter().greet()
         print(value)
         """
-            .write(to: sourceFile, atomically: true, encoding: .utf8)
+        .write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let server = SwiftLanguageServer(logger: Logger(label: "test"), workspaceRoot: workspace)
         defer { Task { await server.shutdown() } }
 
-        let edits = try await server.rename(at: Position(line: 0, character: 7), in: sourceFile.path, newName: "Welcomer")
+        let edits = try await server.rename(
+            at: Position(line: 0, character: 7), in: sourceFile.path, newName: "Welcomer")
         XCTAssertFalse(edits.isEmpty)
 
         let updated = try String(contentsOf: sourceFile, encoding: .utf8)
@@ -369,12 +374,13 @@ final class SwiftMCPServerTests: XCTestCase {
 
         run()
         """
-            .write(to: sourceFile, atomically: true, encoding: .utf8)
+        .write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let server = SwiftLanguageServer(logger: Logger(label: "test"), workspaceRoot: workspace)
         defer { Task { await server.shutdown() } }
 
-        let callers = try await server.callHierarchy(at: Position(line: 0, character: 5), in: sourceFile.path, direction: .incoming)
+        let callers = try await server.callHierarchy(
+            at: Position(line: 0, character: 5), in: sourceFile.path, direction: .incoming)
         XCTAssertTrue(callers.contains { $0.name.contains("run") })
     }
 
@@ -394,12 +400,13 @@ final class SwiftMCPServerTests: XCTestCase {
             func greet() -> String { "hi" }
         }
         """
-            .write(to: sourceFile, atomically: true, encoding: .utf8)
+        .write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let server = SwiftLanguageServer(logger: Logger(label: "test"), workspaceRoot: workspace)
         defer { Task { await server.shutdown() } }
 
-        let subtypes = try await server.typeHierarchy(at: Position(line: 0, character: 9), in: sourceFile.path, direction: .subtypes)
+        let subtypes = try await server.typeHierarchy(
+            at: Position(line: 0, character: 9), in: sourceFile.path, direction: .subtypes)
         XCTAssertTrue(subtypes.contains { $0.name.contains("EnglishGreeter") })
     }
 
@@ -419,12 +426,13 @@ final class SwiftMCPServerTests: XCTestCase {
             func greet() -> String { "hi" }
         }
         """
-            .write(to: sourceFile, atomically: true, encoding: .utf8)
+        .write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let server = SwiftLanguageServer(logger: Logger(label: "test"), workspaceRoot: workspace)
         defer { Task { await server.shutdown() } }
 
-        let implementations = try await server.getImplementations(at: Position(line: 1, character: 9), in: sourceFile.path)
+        let implementations = try await server.getImplementations(
+            at: Position(line: 1, character: 9), in: sourceFile.path)
         XCTAssertFalse(implementations.isEmpty)
     }
 
@@ -443,7 +451,7 @@ final class SwiftMCPServerTests: XCTestCase {
 
         run()
         """
-            .write(to: sourceFile, atomically: true, encoding: .utf8)
+        .write(to: sourceFile, atomically: true, encoding: .utf8)
 
         let server = SwiftLanguageServer(logger: Logger(label: "test"), workspaceRoot: workspace)
         defer { Task { await server.shutdown() } }
@@ -474,24 +482,26 @@ final class SwiftMCPServerTests: XCTestCase {
 
     func testFindSourceKitLSPPrefersActiveToolchain() throws {
         #if os(macOS)
-        try XCTSkipIf(ProcessInfo.processInfo.environment["SOURCEKIT_LSP_PATH"] != nil, "SOURCEKIT_LSP_PATH overrides discovery")
+            try XCTSkipIf(
+                ProcessInfo.processInfo.environment["SOURCEKIT_LSP_PATH"] != nil,
+                "SOURCEKIT_LSP_PATH overrides discovery")
 
-        let xcrun = Process()
-        xcrun.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
-        xcrun.arguments = ["--find", "sourcekit-lsp"]
-        let output = Pipe()
-        xcrun.standardOutput = output
-        xcrun.standardError = FileHandle.nullDevice
-        try xcrun.run()
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        xcrun.waitUntilExit()
-        try XCTSkipIf(xcrun.terminationStatus != 0, "No active toolchain provides sourcekit-lsp")
+            let xcrun = Process()
+            xcrun.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
+            xcrun.arguments = ["--find", "sourcekit-lsp"]
+            let output = Pipe()
+            xcrun.standardOutput = output
+            xcrun.standardError = FileHandle.nullDevice
+            try xcrun.run()
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            xcrun.waitUntilExit()
+            try XCTSkipIf(xcrun.terminationStatus != 0, "No active toolchain provides sourcekit-lsp")
 
-        let activePath = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-        XCTAssertEqual(SwiftLanguageServer.findSourceKitLSP(), activePath)
-        XCTAssertNotNil(SwiftLanguageServer.toolchainVersion(forSourceKitLSP: activePath))
+            let activePath = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            XCTAssertEqual(SwiftLanguageServer.findSourceKitLSP(), activePath)
+            XCTAssertNotNil(SwiftLanguageServer.toolchainVersion(forSourceKitLSP: activePath))
         #else
-        throw XCTSkip("xcrun is macOS-only")
+            throw XCTSkip("xcrun is macOS-only")
         #endif
     }
 
@@ -502,7 +512,7 @@ final class SwiftMCPServerTests: XCTestCase {
             "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/sourcekit-lsp",
             "/usr/local/bin/sourcekit-lsp",
             "/opt/homebrew/bin/sourcekit-lsp",
-            "/usr/bin/sourcekit-lsp"
+            "/usr/bin/sourcekit-lsp",
         ]
 
         return commonPaths.contains { FileManager.default.fileExists(atPath: $0) }
@@ -531,7 +541,7 @@ final class SwiftMCPServerTests: XCTestCase {
             ]
         )
         """
-            .write(to: directory.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
+        .write(to: directory.appendingPathComponent("Package.swift"), atomically: true, encoding: .utf8)
 
         return directory
     }
